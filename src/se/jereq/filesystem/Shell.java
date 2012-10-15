@@ -6,25 +6,27 @@ public class Shell
 {
 	private Filesystem m_Filesystem;
 	private InputStream m_Stream;
+	private boolean lastREnter = false;
 
-	public Shell(Filesystem p_Filesystem,InputStream p_Stream)
+	public Shell(Filesystem p_Filesystem, InputStream p_Stream)
 	{
-		m_Filesystem=p_Filesystem;
+		m_Filesystem = p_Filesystem;
 
-		if(p_Stream==null)
+		if (p_Stream == null)
 		{
-			m_Stream=System.in;
+			m_Stream = System.in;
 		}
 		else
 		{
-			m_Stream=p_Stream;
+			m_Stream = p_Stream;
 		}
 	}
 
 	public void start()
 	{
-		String[] asCommands = { "quit","format","ls","create","cat","save","read",
-														"rm","copy","append","rename","mkdir","cd","pwd","help" };
+		String[] asCommands =
+			{ "quit", "format", "ls", "create", "cat", "save", "read",
+				"rm", "copy", "append", "rename", "mkdir", "cd", "pwd", "help" };
 
 		boolean bRun=true;
 		String	sCommand;
@@ -32,10 +34,10 @@ public class Shell
 
 		while(bRun)
 		{
-			System.out.print("["+m_Filesystem.pwd()+"]$ ");
-			sCommand=readLine();
-			asCommandArray=split(sCommand,' ');
-			if(asCommandArray.length==0)
+			System.out.print("[" + m_Filesystem.pwd() + "]$ ");
+			sCommand = readLine();
+			asCommandArray = split(sCommand, ' ');
+			if (asCommandArray.length == 0)
 			{
 			}
 			else
@@ -262,33 +264,60 @@ public class Shell
 		int nIndex = 0;
 		boolean bEnter = false;
 
-		for(nIndex = 0; nIndex < 1024; nIndex++)
+		for (nIndex = 0; nIndex < 1024; nIndex++)
 		{
 			try
 			{
-				bTemp=(byte)m_Stream.read();
+				bTemp= (byte) m_Stream.read();
 			}
-			catch(IOException io)
+			catch (IOException io)
 			{
-				bTemp='?';
+				bTemp = '?';
 			}
 			
-			if(bTemp=='\n' || bTemp=='\r')
+			if (bTemp == '\n' || bTemp == '\r')
 			{
-				if(bEnter)
+				boolean newline = true;
+				
+				if (lastREnter)
 				{
-					break;
+					if (bTemp == '\n')
+					{
+						lastREnter = false;
+						
+						if (nIndex == 0)
+						{
+							nIndex--;
+							
+							continue;
+						}
+						
+						newline = false;
+					}
 				}
-				else
+				else if (bTemp == '\r')
 				{
-					bEnter=true;
+					lastREnter = true;
+				}
+				
+				if (newline)
+				{
+					if (bEnter)
+					{
+						break;
+					}
+					else
+					{
+						bEnter = true;
+					}
 				}
 			}
 			else
 			{
-				bEnter=false;
+				bEnter = false;
 			}
-			abTempBuffer[nIndex]=bTemp;
+			
+			abTempBuffer[nIndex] = bTemp;
 		}
 
 		return abTempBuffer;
@@ -298,15 +327,15 @@ public class Shell
 	private String readLine()
 	{
 		byte[] abTempBuffer = new byte[1024];
-		int nRead = 0;
-
-		for (int nIndex = 0; nIndex < 1024; nIndex++)
+		
+		int nIndex = 0;
+		for (; nIndex < 1024; nIndex++)
 		{
 			byte bTemp;
 			
 			try
 			{
-				bTemp=(byte)m_Stream.read();
+				bTemp = (byte) m_Stream.read();
 			}
 			catch(IOException io)
 			{
@@ -315,16 +344,28 @@ public class Shell
 
 			if (bTemp == '\n' || bTemp == '\r')
 			{
-				if (nRead == 0)
-					continue;
+				if (lastREnter)
+				{
+					if (bTemp == '\n')
+					{
+						lastREnter = false;
+						nIndex--;
+							
+						continue;
+					}
+				}
+				else if (bTemp == '\r')
+				{
+					lastREnter = true;
+				}
 				
 				break;
 			}
 			
-			abTempBuffer[nRead++] = bTemp;
+			abTempBuffer[nIndex] = bTemp;
 		}
 		
-		String sTemp = new String(abTempBuffer, 0, nRead);
+		String sTemp = new String(abTempBuffer, 0, nIndex);
 		sTemp = sTemp.trim();
 
 		return sTemp;
