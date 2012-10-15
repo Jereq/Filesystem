@@ -1,12 +1,17 @@
 package se.jereq.filesystem;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import se.jereq.filesystem.INode.Type;
 
 public class Filesystem
 {
+	public static final short ROOT_BLOCK = 0;
+	public static final short FREE_LIST_BLOCK = 1;
+	public static final short BLOCK_START = 2;
+	
 	private BlockDevice m_BlockDevice;
 
 	private List<String> currentDirectory;
@@ -20,8 +25,10 @@ public class Filesystem
 	public String format()
 	{
 		INode root = new INode("", INode.Type.Directory);
-		m_BlockDevice.writeBlock(0, root.getBlock());
-		dumpINode(root);
+		writeINode(ROOT_BLOCK, root);
+		
+		FreeListNode free = new FreeListNode();
+		writeFreeList(free);
 		
 		currentDirectory = new ArrayList<String>();
 		currentNode = 0;
@@ -71,7 +78,27 @@ public class Filesystem
 		dumpChildren(node);
 	}
 	
-	private INode findChildNode(INode current, String next)
+	private short findChildNode(INode current, String next)
+	{
+		if (current.getType() == Type.File)
+			return -1;
+		
+		int i = 0;
+		short currChild = current.getChild(i++);
+		while (currChild != -1)
+		{
+			INode child = new INode(m_BlockDevice.readBlock(currChild));
+			
+			if (child.getName().equals(next))
+				return currChild;
+			
+			currChild = current.getChild(i++);
+		}
+		
+		return -1;
+	}
+	
+	private INode findChildINode(INode current, String next)
 	{
 		if (current.getType() == Type.File)
 			return null;
@@ -115,14 +142,33 @@ public class Filesystem
 		return absolutePath.toArray(new String[0]);
 	}
 	
+	private short findNode(String[] path)
+	{
+		String[] absolutePath = toAbsolute(path);
+		
+		if (absolutePath.length == 0)
+			return ROOT_BLOCK;
+		
+		INode node = new INode(m_BlockDevice.readBlock(ROOT_BLOCK));
+		for (int i = 0; i < absolutePath.length - 1; ++i)
+		{
+			node = findChildINode(node, absolutePath[i]);
+			
+			if (node == null)
+				return -1;
+		}
+		
+		return findChildNode(node, absolutePath[absolutePath.length - 1]);
+	}
+	
 	private INode findINode(String[] path)
 	{
 		String[] absolutePath = toAbsolute(path);
 		
-		INode node = new INode(m_BlockDevice.readBlock(0));
+		INode node = new INode(m_BlockDevice.readBlock(ROOT_BLOCK));
 		for (String s : absolutePath)
 		{
-			node = findChildNode(node, s);
+			node = findChildINode(node, s);
 			
 			if (node == null)
 				return null;
@@ -148,9 +194,8 @@ public class Filesystem
 			return "Cannot list file";
 		}
 		
-		StringBuilder res = new StringBuilder("Listing directory /");
-		for (String p : toAbsolute(p_asPath))
-			res.append(p).append("/");
+		StringBuilder res = new StringBuilder("Listing directory ");
+		res.append(catPath(toAbsolute(p_asPath))).append("/");
 		
 		res.append("\n\n");
 		
@@ -176,16 +221,76 @@ public class Filesystem
 		return res.toString();
 	}
 
+	private FreeListNode getFreeList()
+	{
+		return new FreeListNode(m_BlockDevice.readBlock(FREE_LIST_BLOCK));
+	}
+	
+	private void writeFreeList(FreeListNode freeList)
+	{
+
+		m_BlockDevice.writeBlock(FREE_LIST_BLOCK, freeList.getBlock());
+	}
+	
+	private INode getINode(short num)
+	{
+		return new INode(m_BlockDevice.readBlock(num));
+	}
+	
+	private void writeINode(short num, INode node)
+	{
+		m_BlockDevice.writeBlock(num, node.getBlock());
+	}
+	
 	public String create(String[] p_asPath,byte[] p_abContents)
 	{
-		System.out.print("Creating file ");
-		dumpArray(p_asPath);
-		System.out.print("");
-		return new String("");
+		if (currentNode < 0)
+			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+
+		if (p_asPath == null || p_asPath.length == 0)
+			return "Invalid path";
+		
+		String filename = p_asPath[p_asPath.length - 1];
+		if (filename == null || filename.isEmpty())
+			return "Invalid filename";
+		
+		short parentNum = findNode(Arrays.copyOfRange(p_asPath, 0, p_asPath.length - 1));
+		if (parentNum == -1)
+			return "Invalid path";
+		
+		INode parentNode = getINode(parentNum);
+		if (findChildNode(parentNode, filename) != -1)
+			return "A file or directory with that name already exists. Delete that file first or choose another name.";
+		
+		FreeListNode free = getFreeList();
+		
+		short fileNum = free.getNewBlock();
+		INode fileNode = new INode(filename, Type.File);
+		
+		for (int i = 0; i < p_abContents.length; i += BlockDevice.BLOCK_SIZE)
+		{
+			short blockNum = free.getNewBlock();
+			byte[] blockOfData = Arrays.copyOfRange(p_abContents, i, i + BlockDevice.BLOCK_SIZE);
+			
+			m_BlockDevice.writeBlock(blockNum, blockOfData);
+			fileNode.addChild(blockNum);
+		}
+		
+		parentNode.addChild(fileNum);
+		writeINode(fileNum, fileNode);
+		
+		// Finalize changes
+		writeINode(parentNum, parentNode);
+		writeFreeList(free);
+
+		return catPath(p_asPath) + " created successfully";
 	}
 
 	public String cat(String[] p_asPath)
 	{
+		if (currentNode < 0)
+			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+		
 		System.out.print("Dumping contents of file ");
 		dumpArray(p_asPath);
 		System.out.print("");
@@ -194,6 +299,9 @@ public class Filesystem
 
 	public String save(String p_sPath)
 	{
+		if (currentNode < 0)
+			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+		
 		System.out.print("Saving blockdevice to file "+p_sPath);
 		return new String("");
 	}
@@ -206,6 +314,9 @@ public class Filesystem
 
 	public String rm(String[] p_asPath)
 	{
+		if (currentNode < 0)
+			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+		
 		System.out.print("Removing file ");
 		dumpArray(p_asPath);
 		System.out.print("");
@@ -214,6 +325,9 @@ public class Filesystem
 
 	public String copy(String[] p_asSource,String[] p_asDestination)
 	{
+		if (currentNode < 0)
+			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+		
 		System.out.print("Copying file from ");
 		dumpArray(p_asSource);
 		System.out.print(" to ");
@@ -224,6 +338,9 @@ public class Filesystem
 
 	public String append(String[] p_asSource,String[] p_asDestination)
 	{
+		if (currentNode < 0)
+			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+		
 		System.out.print("Appending file ");
 		dumpArray(p_asSource);
 		System.out.print(" to ");
@@ -234,6 +351,9 @@ public class Filesystem
 
 	public String rename(String[] p_asSource,String[] p_asDestination)
 	{
+		if (currentNode < 0)
+			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+		
 		System.out.print("Renaming file ");
 		dumpArray(p_asSource);
 		System.out.print(" to ");
@@ -244,6 +364,9 @@ public class Filesystem
 
 	public String mkdir(String[] p_asPath)
 	{
+		if (currentNode < 0)
+			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+		
 		System.out.print("Creating directory ");
 		dumpArray(p_asPath);
 		System.out.print("");
@@ -252,6 +375,9 @@ public class Filesystem
 
 	public String cd(String[] p_asPath)
 	{
+		if (currentNode < 0)
+			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+		
 		System.out.print("Changing directory to ");
 		dumpArray(p_asPath);
 		System.out.print("");
@@ -277,6 +403,18 @@ public class Filesystem
 		{
 			System.out.print(p_asArray[nIndex] + "=>");
 		}
+	}
+	
+	private String catPath(String[] path)
+	{
+		if (path == null || path.length == 0)
+			return "";
+		
+		StringBuilder res = new StringBuilder();
+		for (String p : path)
+			res.append("/").append(p);
+		
+		return res.toString();
 	}
 
 }

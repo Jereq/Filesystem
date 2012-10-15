@@ -6,7 +6,7 @@ public class INode
 	private static final int CHILDREN_OFFSET = TYPE_OFFSET + 1;
 	public static final int NUM_CHILDREN = (BlockDevice.BLOCK_SIZE - CHILDREN_OFFSET) / 2;
 	
-	byte[] block;
+	private byte[] block;
 	
 	public enum Type
 	{
@@ -111,7 +111,7 @@ public class INode
 	
 	private void putShort(int index, short val)
 	{
-		block[index] = (byte) (val >> 8);
+		block[index] = (byte) (val >>> 8);
 		block[index + 1] = (byte) (val & 0xff);
 	}
 
@@ -139,7 +139,7 @@ public class INode
 	
 	public void removeChild(int num)
 	{
-		if (num < 0|| num >= NUM_CHILDREN)
+		if (num < 0 || num >= NUM_CHILDREN)
 			return;
 		
 		int curInd = toIndex(num);
