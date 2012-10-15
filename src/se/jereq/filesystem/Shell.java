@@ -41,9 +41,9 @@ public class Shell
 			else
 			{
 				int nIndex;
-				for(nIndex=0;nIndex<asCommands.length;nIndex++)
+				for (nIndex = 0; nIndex < asCommands.length; nIndex++)
 				{
-					if(asCommandArray[0].compareTo(asCommands[nIndex])==0)
+					if (asCommandArray[0].compareTo(asCommands[nIndex]) == 0)
 					{
 						break;
 					}
@@ -65,19 +65,19 @@ public class Shell
 					}
 					break;
 				case 2: // ls
-					if(asCommandArray.length==1)
+					if (asCommandArray.length == 1)
 					{
-						System.out.println(m_Filesystem.ls(split(".",'/')));
+						System.out.println(m_Filesystem.ls(new String[]{"."}));
 					}
 					else
 					{
-						if(asCommandArray.length!=2)
+						if (asCommandArray.length != 2)
 						{
 							System.out.println("Usage: ls <path>");
 						}
 						else
 						{
-							System.out.println(m_Filesystem.ls(split(asCommandArray[1],'/')));
+							System.out.println(m_Filesystem.ls(asCommandArray[1].split("/", -1)));
 						}
 					}
 					break;
@@ -257,12 +257,12 @@ public class Shell
 
 	private byte[] readBlock()
 	{
-		byte[] abTempBuffer=new byte[1024];
+		byte[] abTempBuffer = new byte[1024];
 		byte bTemp;
-		int nIndex=0;
-		boolean bEnter=false;
+		int nIndex = 0;
+		boolean bEnter = false;
 
-		for(nIndex=0;nIndex<1024;nIndex++)
+		for(nIndex = 0; nIndex < 1024; nIndex++)
 		{
 			try
 			{
@@ -330,12 +330,14 @@ public class Shell
 		return sTemp;
 	}
 
+	@SuppressWarnings("unused")
 	private void dumpArray(String[] p_asArray)
 	{
-		for(int nIndex=0;nIndex<p_asArray.length;nIndex++)
+		for(int nIndex = 0; nIndex < p_asArray.length; nIndex++)
 		{
-			System.out.print(p_asArray[nIndex]+"->");
+			System.out.print(p_asArray[nIndex] + "->");
 		}
+		
 		System.out.println();
 	} 
 }
