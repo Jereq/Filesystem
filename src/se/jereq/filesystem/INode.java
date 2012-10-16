@@ -181,4 +181,21 @@ public class INode
 		
 		putShort(curInd, (short) -1);
 	}
+	
+	public void removeChildByVal(short val)
+	{
+		int curInd = 0;
+		short curVal = getChild(0);
+		
+		while (curVal != -1)
+		{
+			if (curVal == val)
+			{
+				removeChild(curInd);
+				return;
+			}
+			
+			curVal = getChild(++curInd);
+		}
+	}
 }

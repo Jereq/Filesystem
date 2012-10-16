@@ -433,10 +433,72 @@ public class Filesystem
 		if (currentNode < 0)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 		
-		System.out.print("Removing file ");
-		dumpArray(p_asPath);
-		System.out.print("");
-		return new String("");
+		if (p_asPath == null || p_asPath.length == 0)
+			return "Invalid path";
+		
+		String filename = p_asPath[p_asPath.length - 1];
+		if (filename == null || filename.isEmpty())
+			return "Invalid filename";
+		
+		short parentNum = findNode(Arrays.copyOfRange(p_asPath, 0, p_asPath.length - 1));
+		if (parentNum == -1)
+			return "Invalid path";
+		
+		INode parentNode = getINode(parentNum);
+		
+		short fileNum = findChildNode(parentNode, filename);
+		if (fileNum == -1)
+			return "File does not exist";
+		
+		INode node = getINode(fileNum);
+		
+		FreeListNode free = getFreeList();
+		
+		switch (node.getType())
+		{
+		case File:
+			{
+				parentNode.removeChildByVal(fileNum);
+				
+				int childId = 0;
+				short blockNum = node.getChild(childId++);
+				while (blockNum != -1)
+				{
+					free.freeBlock(blockNum);
+					blockNum = node.getChild(childId++);
+				}
+
+				parentNode.setSize(parentNode.getSize() - 1);
+				
+				free.freeBlock(fileNum);
+				
+				// Finalize changes
+				writeINode(parentNum, parentNode);
+				writeFreeList(free);
+				
+				return "Deleted file " + filename;
+			}
+			
+		case Directory:
+			{
+				if (node.getSize() != 0)
+					return "Cannot remove non-empty directory";
+				
+				parentNode.removeChildByVal(fileNum);
+				parentNode.setSize(parentNode.getSize() - 1);
+				
+				free.freeBlock(fileNum);
+				
+				// Finalize changes
+				writeINode(parentNum, parentNode);
+				writeFreeList(free);
+				
+				return "Deleted directory " + filename;
+			}
+			
+		default:
+			return "Error: unknown type";
+		}
 	}
 
 	public String copy(String[] p_asSource,String[] p_asDestination)
