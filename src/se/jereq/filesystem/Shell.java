@@ -56,7 +56,7 @@ public class Shell
 					return;
 
 				case 1: // format
-					if(asCommandArray.length!=1)
+					if(asCommandArray.length != 1)
 					{
 						System.out.println("Usage: format");
 					}
@@ -84,29 +84,29 @@ public class Shell
 					}
 					break;
 				case 3: // create
-					if(asCommandArray.length!=2)
+					if(asCommandArray.length != 2)
 					{
 						System.out.println("Usage: create <file>");
 					}
 					else
 					{
 						System.out.println("Enter data. Empty line to end.");
-						System.out.println(m_Filesystem.create(split(asCommandArray[1],'/'),readBlock()));
+						System.out.println(m_Filesystem.create(asCommandArray[1].split("/", -1), readBlock()));
 					}
 					break;
 
 				case 4: // cat
-					if(asCommandArray.length!=2)
+					if(asCommandArray.length != 2)
 					{
 						System.out.println("Usage: cat <file>");
 					}
 					else
 					{
-						System.out.println(m_Filesystem.cat(split(asCommandArray[1],'/')));
+						System.out.println(m_Filesystem.cat(asCommandArray[1].split("/", -1)));
 					}
 					break;
 				case 5: // save
-					if(asCommandArray.length!=2)
+					if(asCommandArray.length != 2)
 					{
 						System.out.println("Usage: save <real-file>");
 					}
@@ -116,7 +116,7 @@ public class Shell
 					}
 					break;
 				case 6: // read
-					if(asCommandArray.length!=2)
+					if(asCommandArray.length != 2)
 					{
 						System.out.println("Usage: read <real-file>");
 					}
@@ -127,73 +127,73 @@ public class Shell
 					break;
 
 				case 7: // rm
-					if(asCommandArray.length!=2)
+					if(asCommandArray.length != 2)
 					{
 						System.out.println("Usage: rm <file>");
 					}
 					else
 					{
-						System.out.println(m_Filesystem.rm(split(asCommandArray[1],'/')));
+						System.out.println(m_Filesystem.rm(asCommandArray[1].split("/", -1)));
 					}
 					break;
 
 				case 8: // copy
-					if(asCommandArray.length!=3)
+					if(asCommandArray.length != 3)
 					{
 						System.out.println("Usage: copy <source> <destination>");
 					}
 					else
 					{
-						System.out.println(m_Filesystem.copy(split(asCommandArray[1],'/'),split(asCommandArray[2],'/')));
+						System.out.println(m_Filesystem.copy(asCommandArray[1].split("/", -1), asCommandArray[2].split("/", -1)));
 					}
 					break;
 					
 				case 9: // append
-					if(asCommandArray.length!=3)
+					if(asCommandArray.length != 3)
 					{
 						System.out.println("Usage: append <source> <destination>");
 					}
 					else
 					{
-						System.out.println(m_Filesystem.append(split(asCommandArray[1],'/'),split(asCommandArray[2],'/')));
+						System.out.println(m_Filesystem.append(asCommandArray[1].split("/", -1), asCommandArray[2].split("/", -1)));
 					}
 					break;
 
 				case 10: // rename
-					if(asCommandArray.length!=3)
+					if(asCommandArray.length != 3)
 					{
 						System.out.println("Usage: rename <old file> <new file>");
 					}
 					else
 					{
-						System.out.println(m_Filesystem.rename(split(asCommandArray[1],'/'),split(asCommandArray[2],'/')));						 
+						System.out.println(m_Filesystem.rename(asCommandArray[1].split("/", -1), asCommandArray[2].split("/", -1)));						 
 					}
 					break;
 
 				case 11: // mkdir
-					if(asCommandArray.length!=2)
+					if(asCommandArray.length != 2)
 					{
 						System.out.println("Usage: mkdir <directory name>");
 					}
 					else
 					{
-						System.out.println(m_Filesystem.mkdir(split(asCommandArray[1],'/')));
+						System.out.println(m_Filesystem.mkdir(asCommandArray[1].split("/", -1)));
 					}
 					break;
 
 				case 12: // cd
-					if(asCommandArray.length!=2)
+					if(asCommandArray.length != 2)
 					{
 						System.out.println("Usage: cd <path>");
 					}
 					else
 					{
-						System.out.println(m_Filesystem.cd(split(asCommandArray[1],'/')));
+						System.out.println(m_Filesystem.cd(asCommandArray[1].split("/", -1)));
 					}
 					break;
 
 				case 13: // pwd
-					if(asCommandArray.length!=1)
+					if(asCommandArray.length != 1)
 					{
 						System.out.println("Usage: pwd");
 					}
@@ -208,7 +208,7 @@ public class Shell
 					break;
 
 				default:
-					System.out.println("Unknown command "+asCommandArray[0]);
+					System.out.println("Unknown command " + asCommandArray[0]);
 				}
 			}
 		}
