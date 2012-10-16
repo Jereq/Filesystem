@@ -544,11 +544,37 @@ public class Filesystem
 	{
 		if (currentNode < 0)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+
+		if (p_asPath == null || p_asPath.length == 0)
+			return "Invalid path";
 		
-		System.out.print("Creating directory ");
-		dumpArray(p_asPath);
-		System.out.print("");
-		return new String("");
+		String dirname = p_asPath[p_asPath.length - 1];
+		if (dirname == null || dirname.isEmpty())
+			return "Invalid filename";
+		
+		short parentNum = findNode(Arrays.copyOfRange(p_asPath, 0, p_asPath.length - 1));
+		if (parentNum == -1)
+			return "Invalid path";
+		
+		INode parentNode = getINode(parentNum);
+		if (findChildNode(parentNode, dirname) != -1)
+			return "A file or directory with that name already exists. Delete that file first or choose another name.";
+		
+		FreeListNode free = getFreeList();
+		
+		short dirNum = free.getNewBlock();
+		INode dirNode = new INode(dirname, Type.Directory);
+		
+		parentNode.addChild(dirNum);
+		parentNode.setSize(parentNode.getSize() + 1);
+		
+		writeINode(dirNum, dirNode);
+		
+		// Finalize changes
+		writeINode(parentNum, parentNode);
+		writeFreeList(free);
+
+		return concatPath(p_asPath) + " created successfully";
 	}
 
 	public String cd(String[] p_asPath)
