@@ -143,7 +143,12 @@ public class Filesystem
 			if ("".equals(s) || ".".equals(s))
 				continue;
 			else if ("..".equals(s))
-				absolutePath.remove(absolutePath.size() - 1);
+			{
+				if (!absolutePath.isEmpty())
+					absolutePath.remove(absolutePath.size() - 1);
+				else
+					return new String[0];	// Faulty path, return a default value
+			}
 			else
 				absolutePath.add(s);
 		}

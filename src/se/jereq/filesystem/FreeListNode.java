@@ -52,7 +52,7 @@ public class FreeListNode {
 			
 			if (freeByte != -1)
 			{
-				int firstFreeInByte = Integer.numberOfLeadingZeros(~freeByte) - 24;
+				int firstFreeInByte = Integer.numberOfLeadingZeros(~(freeByte << 24));
 				block[FREE_LIST_START + i] |= 1 << (7 - firstFreeInByte);
 				
 				short res = (short) (i * 8 + firstFreeInByte);
@@ -70,7 +70,7 @@ public class FreeListNode {
 		int byteNum = num / 8;
 		int bitInByte = num % 8;
 		
-		block[byteNum + 1] &= ~(1 << bitInByte);
+		block[FREE_LIST_START + byteNum] &= ~(0x80 >>> bitInByte);
 		
 		if (getFirstFree() > num)
 		{
