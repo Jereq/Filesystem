@@ -262,7 +262,7 @@ public class Shell
 		byte[] abTempBuffer = new byte[1024];
 		byte bTemp;
 		int nIndex = 0;
-		boolean bEnter = false;
+		boolean bEnter = true;
 
 		for (nIndex = 0; nIndex < 1024; nIndex++)
 		{
