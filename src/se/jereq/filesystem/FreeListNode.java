@@ -52,8 +52,8 @@ public class FreeListNode {
 			
 			if (freeByte != -1)
 			{
-				int firstFreeInByte = Integer.numberOfLeadingZeros(~freeByte);
-				block[FREE_LIST_START + i] |= 1 << firstFreeInByte;
+				int firstFreeInByte = Integer.numberOfLeadingZeros(~freeByte) - 24;
+				block[FREE_LIST_START + i] |= 1 << (7 - firstFreeInByte);
 				
 				short res = (short) (i * 8 + firstFreeInByte);
 				setFirstFree(res);
