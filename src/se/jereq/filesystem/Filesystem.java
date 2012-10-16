@@ -253,6 +253,12 @@ public class Filesystem
 		m_BlockDevice.writeBlock(num, node.getBlock());
 	}
 	
+	private void copyBlock(short source, short dest)
+	{
+		byte[] data = m_BlockDevice.readBlock(source);
+		m_BlockDevice.writeBlock(dest, data);
+	}
+	
 	public String create(String[] p_asPath,byte[] p_abContents)
 	{
 		if (currentNode < 0)
@@ -501,17 +507,110 @@ public class Filesystem
 		}
 	}
 
-	public String copy(String[] p_asSource,String[] p_asDestination)
+	private short copyFile(INode source, String destName, FreeListNode freeList)
+	{
+		short destFileNum = freeList.getNewBlock();
+		INode destFileNode = new INode(destName, Type.File);
+		
+		int blockId = 0;
+		short blockNum = source.getChild(0);
+		while (blockNum != -1)
+		{
+			short newBlockNum = freeList.getNewBlock();
+			
+			copyBlock(blockNum, newBlockNum);
+			
+			destFileNode.addChild(newBlockNum);
+			
+			blockNum = source.getChild(++blockId);
+		}
+		
+		destFileNode.setSize(source.getSize());
+		
+		writeINode(destFileNum, destFileNode);
+		
+		return destFileNum;
+	}
+	
+	private short copyDir(INode source, String destName, FreeListNode freeList)
+	{
+		short destDirNum = freeList.getNewBlock();
+		INode destDirNode = new INode(destName, Type.Directory);
+		
+		int childId = 0;
+		short childNum = source.getChild(0);
+		while (childNum != -1)
+		{
+			INode childNode = getINode(childNum);
+			short childCopyNum = copy(childNode, childNode.getName(), freeList);
+			destDirNode.addChild(childCopyNum);
+			
+			childNum = source.getChild(++childId);
+		}
+		
+		destDirNode.setSize(source.getSize());
+		
+		writeINode(destDirNum, destDirNode);
+		
+		return destDirNum;
+	}
+	
+	private short copy(INode source, String destName, FreeListNode freeList)
+	{
+		switch (source.getType())
+		{
+		case File:
+			return copyFile(source, destName, freeList);
+			
+		case Directory:
+			return copyDir(source, destName, freeList);
+			
+		default:
+			return -1;
+		}
+	}
+	
+	public String copy(String[] p_asSource, String[] p_asDestination)
 	{
 		if (currentNode < 0)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+
+		if (p_asSource == null || p_asSource.length == 0)
+			return "Invalid source path";
 		
-		System.out.print("Copying file from ");
-		dumpArray(p_asSource);
-		System.out.print(" to ");
-		dumpArray(p_asDestination);
-		System.out.print("");
-		return new String("");
+		INode sourceFileNode = findINode(p_asSource);
+		if (sourceFileNode == null)
+			return "Source does not exist";
+
+		if (p_asDestination == null || p_asDestination.length == 0)
+			return "Invalid destination path";
+		
+		String destFilename = p_asDestination[p_asDestination.length - 1];
+		if (destFilename == null || destFilename.isEmpty())
+			return "Invalid destination filename";
+		
+		short destParentNum = findNode(Arrays.copyOfRange(p_asDestination, 0, p_asDestination.length - 1));
+		if (destParentNum == -1)
+			return "Invalid destination path";
+		
+		INode destParentNode = getINode(destParentNum);
+		if (findChildNode(destParentNode, destFilename) != -1)
+			return "A file or directory with the destination name already exists. Delete that file first or choose another name.";
+		
+		FreeListNode free = getFreeList();
+		
+		short copyNum = copy(sourceFileNode, destFilename, free);
+		if (copyNum == -1)
+			return "Could not copy file or directory";
+		
+		destParentNode.addChild(copyNum);
+		destParentNode.setSize(destParentNode.getSize() + 1);
+		
+		// Finalize changes
+		writeINode(destParentNum, destParentNode);
+		writeFreeList(free);
+
+		return concatPath(p_asSource) + " copied successfully to " + concatPath(p_asDestination);
 	}
 
 	public String append(String[] p_asSource,String[] p_asDestination)
