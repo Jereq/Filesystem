@@ -195,7 +195,7 @@ public class Filesystem
 		}
 		
 		StringBuilder res = new StringBuilder("Listing directory ");
-		res.append(catPath(toAbsolute(p_asPath))).append("/");
+		res.append(concatPath(toAbsolute(p_asPath))).append("/");
 		
 		res.append("\n\n");
 		
@@ -205,10 +205,7 @@ public class Filesystem
 		{
 			INode child = new INode(m_BlockDevice.readBlock(currChild));
 			
-			String name = child.getName();
-			
-			res.append(name).append(new String(new char[20 - name.length()]).replace('\0', ' '));
-			res.append(child.getType()).append("\n");
+			res.append(String.format("%-20s%-10s%10d\n", child.getName(), child.getType(), child.getSize()));
 			
 			currChild = dir.getChild(i++);
 		}
@@ -276,14 +273,18 @@ public class Filesystem
 			fileNode.addChild(blockNum);
 		}
 		
+		fileNode.setSize(p_abContents.length);
+		
 		parentNode.addChild(fileNum);
+		parentNode.setSize(parentNode.getSize() + 1);
+		
 		writeINode(fileNum, fileNode);
 		
 		// Finalize changes
 		writeINode(parentNum, parentNode);
 		writeFreeList(free);
 
-		return catPath(p_asPath) + " created successfully";
+		return concatPath(p_asPath) + " created successfully";
 	}
 
 	public String cat(String[] p_asPath)
@@ -291,10 +292,41 @@ public class Filesystem
 		if (currentNode < 0)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 		
-		System.out.print("Dumping contents of file ");
-		dumpArray(p_asPath);
-		System.out.print("");
-		return new String("");
+		INode file = findINode(p_asPath);
+		
+		if (file == null)
+		{
+			return "File does not exist";
+		}
+		
+		if (file.getType() != Type.File)
+		{
+			return "Cannot catenate anything other than files";
+		}
+		
+		int fileSize = file.getSize();
+		int completeBlocks = fileSize / BlockDevice.BLOCK_SIZE;
+		int incompleteBlockSize = fileSize % BlockDevice.BLOCK_SIZE;
+		
+		StringBuilder res = new StringBuilder();
+		res.append("Dumping contents of ").append(file.getName())
+			.append(" (").append(file.getSize()).append(" bytes):\n");
+		
+		for (int i = 0; i < completeBlocks; ++i)
+		{
+			short blockNum = file.getChild(i);
+			byte[] block = m_BlockDevice.readBlock(blockNum);
+			res.append(new String(block, 0, block.length));
+		}
+		
+		if (incompleteBlockSize != 0)
+		{
+			short blockNum = file.getChild(completeBlocks);
+			byte[] block = m_BlockDevice.readBlock(blockNum);
+			res.append(new String(block, 0, incompleteBlockSize));
+		}
+		
+		return res.toString();
 	}
 
 	public String save(String p_sPath)
@@ -302,14 +334,14 @@ public class Filesystem
 		if (currentNode < 0)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 		
-		System.out.print("Saving blockdevice to file "+p_sPath);
-		return new String("");
+		System.out.print("Saving blockdevice to file " + p_sPath);
+		return "";
 	}
 
 	public String read(String p_sPath)
 	{
-		System.out.print("Reading file "+p_sPath+" to blockdevice");
-		return new String("");
+		System.out.print("Reading file " + p_sPath + " to blockdevice");
+		return "";
 	}
 
 	public String rm(String[] p_asPath)
@@ -405,7 +437,7 @@ public class Filesystem
 		}
 	}
 	
-	private String catPath(String[] path)
+	private String concatPath(String[] path)
 	{
 		if (path == null || path.length == 0)
 			return "";
