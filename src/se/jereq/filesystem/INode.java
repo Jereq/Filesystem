@@ -3,7 +3,8 @@ public class INode
 {
 	public static final int MAX_FILENAME_LENGTH = 17;
 	private static final int TYPE_OFFSET = MAX_FILENAME_LENGTH;
-	private static final int CHILDREN_OFFSET = TYPE_OFFSET + 1;
+	private static final int SIZE_OFFSET = TYPE_OFFSET + 1;
+	private static final int CHILDREN_OFFSET = SIZE_OFFSET + 4;
 	public static final int NUM_CHILDREN = (BlockDevice.BLOCK_SIZE - CHILDREN_OFFSET) / 2;
 	
 	private byte[] block;
@@ -99,6 +100,16 @@ public class INode
 		}
 	}
 	
+	public int getSize()
+	{
+		return getInt(SIZE_OFFSET);
+	}
+	
+	public void setSize(int size)
+	{
+		putInt(SIZE_OFFSET, size);
+	}
+	
 	private int toIndex(int num)
 	{
 		return CHILDREN_OFFSET + 2 * num;
@@ -113,6 +124,22 @@ public class INode
 	{
 		block[index] = (byte) (val >>> 8);
 		block[index + 1] = (byte) (val & 0xff);
+	}
+	
+	private int getInt(int index)
+	{
+		return block[index] << 24 |
+				block[index + 1] << 16 |
+				block[index + 2] << 8 |
+				block[index + 3];
+	}
+	
+	private void putInt(int index, int val)
+	{
+		block[index + 0] = (byte) (val >>> 24);
+		block[index + 1] = (byte) ((val >>> 16) & 0xff);
+		block[index + 2] = (byte) ((val >>> 8) & 0xff);
+		block[index + 3] = (byte) (val & 0xff);
 	}
 
 	public short getChild(int num)
