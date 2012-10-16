@@ -79,6 +79,7 @@ public class Filesystem
 		printRep(prev, repCount);
 	}
 	
+	@SuppressWarnings("unused")
 	private void dumpINode(INode node)
 	{
 		System.out.println("Name: \"" + node.getName() + "\"");
@@ -278,6 +279,9 @@ public class Filesystem
 		INode parentNode = getINode(parentNum);
 		if (findChildNode(parentNode, filename) != -1)
 			return "A file or directory with that name already exists. Delete that file first or choose another name.";
+		
+		if (p_abContents.length > BlockDevice.BLOCK_SIZE * INode.NUM_CHILDREN)
+			return "Size to large. Max filesize supported is " + (BlockDevice.BLOCK_SIZE * INode.NUM_CHILDREN) + " bytes";
 		
 		FreeListNode free = getFreeList();
 		
@@ -578,8 +582,8 @@ public class Filesystem
 		if (p_asSource == null || p_asSource.length == 0)
 			return "Invalid source path";
 		
-		INode sourceFileNode = findINode(p_asSource);
-		if (sourceFileNode == null)
+		INode sourceNode = findINode(p_asSource);
+		if (sourceNode == null)
 			return "Source does not exist";
 
 		if (p_asDestination == null || p_asDestination.length == 0)
@@ -599,7 +603,7 @@ public class Filesystem
 		
 		FreeListNode free = getFreeList();
 		
-		short copyNum = copy(sourceFileNode, destFilename, free);
+		short copyNum = copy(sourceNode, destFilename, free);
 		if (copyNum == -1)
 			return "Could not copy file or directory";
 		
@@ -612,18 +616,124 @@ public class Filesystem
 
 		return concatPath(p_asSource) + " copied successfully to " + concatPath(p_asDestination);
 	}
+	
+	private void appendDirect(INode sourceFile, INode destFile, FreeListNode freeList)
+	{
+		int blockId = 0;
+		short blockNum = sourceFile.getChild(0);
+		while (blockNum != -1)
+		{
+			short newBlock = freeList.getNewBlock();
+			copyBlock(blockNum, newBlock);
+			destFile.addChild(newBlock);
+			
+			blockNum = sourceFile.getChild(++blockId);
+		}
+	}
+	
+	private void bufferedCopy(short source, short dest, byte[] buffer, int devideAt)
+	{
+		byte[] sourceBlock = m_BlockDevice.readBlock(source);
+		System.arraycopy(sourceBlock, 0, buffer, devideAt, buffer.length - devideAt);
+		
+		m_BlockDevice.writeBlock(dest, buffer);
+		
+		System.arraycopy(sourceBlock, buffer.length - devideAt, buffer, 0, devideAt);
+	}
+	
+	private void appendBuffered(INode sourceFile, INode destFile, FreeListNode freeList)
+	{
+		int sourceSize = sourceFile.getSize();
+		if (sourceSize == 0)
+			return;
+		
+		int sourceLastPartSize = sourceSize % BlockDevice.BLOCK_SIZE;
+		
+		int destSize = destFile.getSize();
+		int destStartBlock = destSize / BlockDevice.BLOCK_SIZE;
+		int firstPartSize = destSize % BlockDevice.BLOCK_SIZE;
+		int sndPartSize = BlockDevice.BLOCK_SIZE - firstPartSize;
+		
+		short firstDestBlock = destFile.getChild(destStartBlock);
+		byte[] buffer = m_BlockDevice.readBlock(firstDestBlock);
+		
+		int blockId = 0;
+		short blockNum = sourceFile.getChild(0);
+		
+		// Write back the existing first block
+		{
+			bufferedCopy(blockNum, firstDestBlock, buffer, firstPartSize);
+			
+			blockNum = sourceFile.getChild(++blockId);
+		}
+		
+		// Write middle blocks
+		while (blockNum != -1)
+		{
+			short newBlock = freeList.getNewBlock();
+			
+			bufferedCopy(blockNum, newBlock, buffer, firstPartSize);
+			
+			destFile.addChild(newBlock);
+			
+			blockNum = sourceFile.getChild(++blockId);
+		}
+		
+		// Write any potentially remaining data in the buffer
+		if (sourceLastPartSize > sndPartSize)
+		{
+			short newBlock = freeList.getNewBlock();
+			m_BlockDevice.writeBlock(newBlock, buffer);
+			
+			destFile.addChild(newBlock);
+		}
+	}
 
-	public String append(String[] p_asSource,String[] p_asDestination)
+	public String append(String[] p_asSource, String[] p_asDestination)
 	{
 		if (currentNode < 0)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 		
-		System.out.print("Appending file ");
-		dumpArray(p_asSource);
-		System.out.print(" to ");
-		dumpArray(p_asDestination);
-		System.out.print("");
-		return new String("");
+		if (p_asSource == null || p_asSource.length == 0)
+			return "Invalid source path";
+		
+		INode sourceFileNode = findINode(p_asSource);
+		if (sourceFileNode == null)
+			return "Source does not exist";
+		
+		if (sourceFileNode.getType() != Type.File)
+			return "Source is not a file";
+		
+		if (p_asDestination == null || p_asDestination.length == 0)
+			return "Invalid destination path";
+		
+		short destFileNum = findNode(p_asDestination);
+		if (destFileNum == -1)
+			return "Destination does not exist";
+		
+		INode destFileNode = getINode(destFileNum);
+		if (destFileNode.getType() != Type.File)
+			return "Destination is not a file";
+		
+		int destStartSize = destFileNode.getSize();
+		int newSize = destStartSize + sourceFileNode.getSize();
+		
+		if (newSize > BlockDevice.BLOCK_SIZE * INode.NUM_CHILDREN)
+			return "Files to large, can not append";
+		
+		FreeListNode free = getFreeList();
+		
+		if (destStartSize % BlockDevice.BLOCK_SIZE == 0)
+			appendDirect(sourceFileNode, destFileNode, free);
+		else
+			appendBuffered(sourceFileNode, destFileNode, free);
+		
+		destFileNode.setSize(newSize);
+		
+		writeINode(destFileNum, destFileNode);
+		writeFreeList(free);
+
+		return "Appended " + concatPath(p_asSource) + " to " + concatPath(p_asDestination);
 	}
 
 	public String rename(String[] p_asSource,String[] p_asDestination)
