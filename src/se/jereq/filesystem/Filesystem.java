@@ -1,5 +1,14 @@
 package se.jereq.filesystem;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -334,14 +343,84 @@ public class Filesystem
 		if (currentNode < 0)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 		
-		System.out.print("Saving blockdevice to file " + p_sPath);
-		return "";
+		try
+		{
+			OutputStream output = null;
+			try
+			{
+				output = new BufferedOutputStream(new FileOutputStream(p_sPath));
+				for (int i = 0; i < BlockDevice.BLOCK_COUNT; ++i)
+				{
+					output.write(m_BlockDevice.readBlock(i));
+				}
+			}
+			finally
+			{
+				output.close();
+			}
+		}
+		catch (FileNotFoundException ex)
+		{
+			return "File not found";
+		}
+		catch (IOException ex)
+		{
+			return ex.toString();
+		}
+		
+		return "Saved blockdevice to file " + p_sPath;
 	}
 
 	public String read(String p_sPath)
 	{
-		System.out.print("Reading file " + p_sPath + " to blockdevice");
-		return "";
+		File file = new File(p_sPath);
+		
+		if (file.length() != BlockDevice.BLOCK_COUNT * BlockDevice.BLOCK_SIZE)
+		{
+			return "Invalid file size";
+		}
+		
+		try
+		{
+			InputStream input = null;
+			try
+			{
+				byte[] block = new byte[BlockDevice.BLOCK_SIZE];
+				
+				input = new BufferedInputStream(new FileInputStream(file));
+				for (int i = 0; i < BlockDevice.BLOCK_COUNT; ++i)
+				{
+					int totalBytesRead = 0;
+					
+					while (totalBytesRead < block.length)
+					{
+						int bytesRemaining = block.length - totalBytesRead;
+						int bytesRead = input.read(block, totalBytesRead, bytesRemaining);
+						if (bytesRead > 0)
+							totalBytesRead += bytesRead;
+					}
+					
+					m_BlockDevice.writeBlock(i, block);
+				}
+			}
+			finally
+			{
+				input.close();
+			}
+		}
+		catch (FileNotFoundException ex)
+		{
+			return "File not found";
+		}
+		catch (IOException ex)
+		{
+			return ex.toString();
+		}
+		
+		currentDirectory = new ArrayList<String>();
+		currentNode = 0;
+		
+		return "Read file " + p_sPath + " to blockdevice";
 	}
 
 	public String rm(String[] p_asPath)
