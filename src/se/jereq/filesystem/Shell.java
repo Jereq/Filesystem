@@ -1,5 +1,6 @@
 package se.jereq.filesystem;
 import java.io.*;
+import java.util.Arrays;
 
 
 public class Shell
@@ -320,7 +321,7 @@ public class Shell
 			abTempBuffer[nIndex] = bTemp;
 		}
 
-		return abTempBuffer;
+		return Arrays.copyOf(abTempBuffer, nIndex);
 
 	}
 

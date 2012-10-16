@@ -117,29 +117,30 @@ public class INode
 	
 	private short getShort(int index)
 	{
-		return (short) (block[index] << 8 | block[index + 1]);
+		return (short) ((block[index] & 0xff) << 8 |
+				(block[index + 1] & 0xff));
 	}
 	
 	private void putShort(int index, short val)
 	{
 		block[index] = (byte) (val >>> 8);
-		block[index + 1] = (byte) (val & 0xff);
+		block[index + 1] = (byte) val;
 	}
 	
 	private int getInt(int index)
 	{
-		return block[index] << 24 |
-				block[index + 1] << 16 |
-				block[index + 2] << 8 |
-				block[index + 3];
+		return (block[index] & 0xff) << 24 |
+				(block[index + 1] & 0xff) << 16 |
+				(block[index + 2] & 0xff) << 8 |
+				(block[index + 3] & 0xff);
 	}
 	
 	private void putInt(int index, int val)
 	{
 		block[index + 0] = (byte) (val >>> 24);
-		block[index + 1] = (byte) ((val >>> 16) & 0xff);
-		block[index + 2] = (byte) ((val >>> 8) & 0xff);
-		block[index + 3] = (byte) (val & 0xff);
+		block[index + 1] = (byte) (val >>> 16);
+		block[index + 2] = (byte) (val >>> 8);
+		block[index + 3] = (byte) val;
 	}
 
 	public short getChild(int num)
@@ -162,6 +163,8 @@ public class INode
 				return;
 			}
 		}
+		
+		throw new RuntimeException("Max size reached");
 	}
 	
 	public void removeChild(int num)

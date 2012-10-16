@@ -27,7 +27,7 @@ public class FreeListNode {
 	private void setFirstFree(short free)
 	{
 		block[0] = (byte) (free >>> 8);
-		block[1] = (byte) (free & 0xff);
+		block[1] = (byte) (free);
 	}
 	
 	/**
@@ -39,7 +39,8 @@ public class FreeListNode {
 	 */
 	private short getFirstFree()
 	{
-		return (short) (block[0] << 8 | block[1]);
+		return (short) ((block[0] & 0xff) << 8 |
+				block[1] & 0xff);
 	}
 	
 	public short getNewBlock()
@@ -52,7 +53,7 @@ public class FreeListNode {
 			
 			if (freeByte != -1)
 			{
-				int firstFreeInByte = Integer.numberOfLeadingZeros(~(freeByte << 24));
+				int firstFreeInByte = Integer.numberOfLeadingZeros(~((freeByte & 0xff) << 24));
 				block[FREE_LIST_START + i] |= 1 << (7 - firstFreeInByte);
 				
 				short res = (short) (i * 8 + firstFreeInByte);
