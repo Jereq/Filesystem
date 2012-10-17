@@ -740,13 +740,62 @@ public class Filesystem
 	{
 		if (currentNode < 0)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
+
+		if (p_asSource == null || p_asSource.length == 0)
+			return "Invalid source path";
+
+		if (p_asDestination == null || p_asDestination.length == 0)
+			return "Invalid destination path";
 		
-		System.out.print("Renaming file ");
-		dumpArray(p_asSource);
-		System.out.print(" to ");
-		dumpArray(p_asDestination);
-		System.out.print("");
-		return new String("");
+		short sourceParentNum = findNode(Arrays.copyOfRange(p_asSource, 0, p_asSource.length - 1));
+		if (sourceParentNum == -1)
+			return "Invalid source path";
+		
+		short destParentNum = findNode(Arrays.copyOfRange(p_asDestination, 0, p_asDestination.length - 1));
+		if (destParentNum == -1)
+			return "Invalid destination path";
+		
+		String sourceFilename = p_asSource[p_asSource.length - 1];
+		if (sourceFilename == null || sourceFilename.isEmpty())
+			return "Invalid source filename";
+		
+		String destFilename = p_asDestination[p_asDestination.length - 1];
+		if (destFilename == null || destFilename.isEmpty())
+			return "Invalid destination filename";
+		
+		
+		INode sourceParentNode = getINode(sourceParentNum);
+		short sourceNum = findChildNode(sourceParentNode, sourceFilename);
+		if (sourceNum == -1)
+			return "Source does not exist";
+		INode sourceNode = getINode(sourceNum);
+		
+		INode destParentNode = getINode(destParentNum);
+		if (findChildNode(destParentNode, destFilename) != -1)
+			return "A file or directory with the destination name already exists. Delete that file first or choose another name.";
+		
+		// Rename if names different
+		if (!sourceFilename.equals(destFilename))
+		{
+			sourceNode.setName(destFilename);
+			writeINode(sourceNum, sourceNode);
+		}
+		
+		// Move file if in different places
+		if (sourceParentNum != destParentNum)
+		{
+			sourceParentNode.removeChildByVal(sourceNum);
+			sourceParentNode.setSize(sourceParentNode.getSize() - 1);
+			
+			destParentNode.addChild(sourceNum);
+			destParentNode.setSize(destParentNode.getSize() + 1);
+			
+			// Finalize changes
+			writeINode(destParentNum, destParentNode);
+			writeINode(sourceParentNum, sourceParentNode);
+		}
+
+		return concatPath(p_asSource) + " renamed successfully to " + concatPath(p_asDestination);
 	}
 
 	public String mkdir(String[] p_asPath)
