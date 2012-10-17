@@ -52,8 +52,10 @@ public class INode
 	
 	public void setName(String name)
 	{
-		if (name.length() > MAX_FILENAME_LENGTH || name.isEmpty())
-			return;
+		if (name.length() > MAX_FILENAME_LENGTH)
+			throw new IllegalArgumentException("Filename too long");
+		if (name.isEmpty())
+			throw new IllegalArgumentException("Filename can not be empty");
 		
 		byte[] bName = name.getBytes();
 		

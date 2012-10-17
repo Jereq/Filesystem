@@ -33,7 +33,7 @@ public class Filesystem
 
 	public String format()
 	{
-		INode root = new INode("", INode.Type.Directory);
+		INode root = new INode("�SYSTEM_ROOT_NODE", INode.Type.Directory);
 		writeINode(ROOT_BLOCK, root);
 		
 		FreeListNode free = new FreeListNode();
@@ -286,7 +286,16 @@ public class Filesystem
 		FreeListNode free = getFreeList();
 		
 		short fileNum = free.getNewBlock();
-		INode fileNode = new INode(filename, Type.File);
+		
+		INode fileNode;
+		try
+		{
+			fileNode = new INode(filename, Type.File);
+		}
+		catch (IllegalArgumentException ex)
+		{
+			return ex.getMessage();
+		}
 		
 		for (int i = 0; i < p_abContents.length; i += BlockDevice.BLOCK_SIZE)
 		{
