@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import se.jereq.filesystem.INode.Type;
@@ -24,7 +25,6 @@ public class Filesystem
 	private BlockDevice m_BlockDevice;
 
 	private List<String> currentDirectory;
-	private int currentNode = -1;
 
 	public Filesystem(BlockDevice p_BlockDevice)
 	{
@@ -33,14 +33,13 @@ public class Filesystem
 
 	public String format()
 	{
-		INode root = new INode("ï¿½SYSTEM_ROOT_NODE", INode.Type.Directory);
+		INode root = new INode("§SYSTEM_ROOT_NODE", INode.Type.Directory);
 		writeINode(ROOT_BLOCK, root);
 		
 		FreeListNode free = new FreeListNode();
 		writeFreeList(free);
 		
-		currentDirectory = new ArrayList<String>();
-		currentNode = 0;
+		currentDirectory = Collections.emptyList();
 		
 		return new String("Diskformat successful");
 	}
@@ -88,7 +87,7 @@ public class Filesystem
 		dumpChildren(node);
 	}
 	
-	private short findChildNode(INode current, String next)
+	private short findChildNode(INode current, String nextName)
 	{
 		if (current.getType() == Type.File)
 			return -1;
@@ -99,7 +98,7 @@ public class Filesystem
 		{
 			INode child = new INode(m_BlockDevice.readBlock(currChild));
 			
-			if (child.getName().equals(next))
+			if (child.getName().equals(nextName))
 				return currChild;
 			
 			currChild = current.getChild(i++);
@@ -108,7 +107,7 @@ public class Filesystem
 		return -1;
 	}
 	
-	private INode findChildINode(INode current, String next)
+	private INode findChildINode(INode current, String nextName)
 	{
 		if (current.getType() == Type.File)
 			return null;
@@ -119,7 +118,7 @@ public class Filesystem
 		{
 			INode child = new INode(m_BlockDevice.readBlock(currChild));
 			
-			if (child.getName().equals(next))
+			if (child.getName().equals(nextName))
 				return child;
 			
 			currChild = current.getChild(i++);
@@ -157,31 +156,27 @@ public class Filesystem
 		return absolutePath.toArray(new String[0]);
 	}
 	
-	private short findNode(String[] path)
+	private short findNode(String[] absPath)
 	{
-		String[] absolutePath = toAbsolute(path);
-		
-		if (absolutePath.length == 0)
+		if (absPath.length == 0)
 			return ROOT_BLOCK;
 		
 		INode node = new INode(m_BlockDevice.readBlock(ROOT_BLOCK));
-		for (int i = 0; i < absolutePath.length - 1; ++i)
+		for (int i = 0; i < absPath.length - 1; ++i)
 		{
-			node = findChildINode(node, absolutePath[i]);
+			node = findChildINode(node, absPath[i]);
 			
 			if (node == null)
 				return -1;
 		}
 		
-		return findChildNode(node, absolutePath[absolutePath.length - 1]);
+		return findChildNode(node, absPath[absPath.length - 1]);
 	}
 	
-	private INode findINode(String[] path)
+	private INode findINode(String[] absPath)
 	{
-		String[] absolutePath = toAbsolute(path);
-		
 		INode node = new INode(m_BlockDevice.readBlock(ROOT_BLOCK));
-		for (String s : absolutePath)
+		for (String s : absPath)
 		{
 			node = findChildINode(node, s);
 			
@@ -194,10 +189,11 @@ public class Filesystem
 
 	public String ls(String[] p_asPath)
 	{
-		if (currentNode < 0)
+		if (currentDirectory == null)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 		
-		INode dir = findINode(p_asPath);
+		String[] absPath = toAbsolute(p_asPath);
+		INode dir = findINode(absPath);
 		
 		if (dir == null)
 		{
@@ -206,11 +202,11 @@ public class Filesystem
 		
 		if (dir.getType() == Type.File)
 		{
-			return "Cannot list file";
+			return "Can not list file";
 		}
 		
 		StringBuilder res = new StringBuilder("Listing directory ");
-		res.append(concatPath(toAbsolute(p_asPath))).append("/");
+		res.append(concatPath(p_asPath));
 		
 		res.append("\n\n");
 		
@@ -260,19 +256,21 @@ public class Filesystem
 		m_BlockDevice.writeBlock(dest, data);
 	}
 	
-	public String create(String[] p_asPath,byte[] p_abContents)
+	public String create(String[] p_asPath, byte[] p_abContents)
 	{
-		if (currentNode < 0)
+		if (currentDirectory == null)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 
 		if (p_asPath == null || p_asPath.length == 0)
 			return "Invalid path";
 		
-		String filename = p_asPath[p_asPath.length - 1];
+		String[] absPath = toAbsolute(p_asPath);
+		
+		String filename = absPath[absPath.length - 1];
 		if (filename == null || filename.isEmpty())
 			return "Invalid filename";
 		
-		short parentNum = findNode(Arrays.copyOfRange(p_asPath, 0, p_asPath.length - 1));
+		short parentNum = findNode(Arrays.copyOfRange(absPath, 0, absPath.length - 1));
 		if (parentNum == -1)
 			return "Invalid path";
 		
@@ -322,10 +320,12 @@ public class Filesystem
 
 	public String cat(String[] p_asPath)
 	{
-		if (currentNode < 0)
+		if (currentDirectory == null)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 		
-		INode file = findINode(p_asPath);
+		String[] absPath = toAbsolute(p_asPath);
+		
+		INode file = findINode(absPath);
 		
 		if (file == null)
 		{
@@ -334,7 +334,7 @@ public class Filesystem
 		
 		if (file.getType() != Type.File)
 		{
-			return "Cannot catenate anything other than files";
+			return "Can not catenate anything other than files";
 		}
 		
 		int fileSize = file.getSize();
@@ -342,7 +342,7 @@ public class Filesystem
 		int incompleteBlockSize = fileSize % BlockDevice.BLOCK_SIZE;
 		
 		StringBuilder res = new StringBuilder();
-		res.append("Dumping contents of ").append(file.getName())
+		res.append("Dumping contents of ").append(concatPath(p_asPath))
 			.append(" (").append(file.getSize()).append(" bytes):\n");
 		
 		for (int i = 0; i < completeBlocks; ++i)
@@ -364,7 +364,7 @@ public class Filesystem
 
 	public String save(String p_sPath)
 	{
-		if (currentNode < 0)
+		if (currentDirectory == null)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 		
 		try
@@ -441,25 +441,26 @@ public class Filesystem
 			return ex.toString();
 		}
 		
-		currentDirectory = new ArrayList<String>();
-		currentNode = 0;
+		currentDirectory = Collections.emptyList();
 		
 		return "Read file " + p_sPath + " to blockdevice";
 	}
 
 	public String rm(String[] p_asPath)
 	{
-		if (currentNode < 0)
+		if (currentDirectory == null)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 		
 		if (p_asPath == null || p_asPath.length == 0)
 			return "Invalid path";
 		
-		String filename = p_asPath[p_asPath.length - 1];
+		String[] absPath = toAbsolute(p_asPath);
+		
+		String filename = absPath[absPath.length - 1];
 		if (filename == null || filename.isEmpty())
 			return "Invalid filename";
 		
-		short parentNum = findNode(Arrays.copyOfRange(p_asPath, 0, p_asPath.length - 1));
+		short parentNum = findNode(Arrays.copyOfRange(absPath, 0, absPath.length - 1));
 		if (parentNum == -1)
 			return "Invalid path";
 		
@@ -495,13 +496,16 @@ public class Filesystem
 				writeINode(parentNum, parentNode);
 				writeFreeList(free);
 				
-				return "Deleted file " + filename;
+				return "Deleted file " + concatPath(p_asPath);
 			}
 			
 		case Directory:
 			{
 				if (node.getSize() != 0)
-					return "Cannot remove non-empty directory";
+					return "Can not remove non-empty directory";
+				
+				if (currentDirectory.equals(Arrays.asList(absPath)))
+					return "Can not remove the working directory";
 				
 				parentNode.removeChildByVal(fileNum);
 				parentNode.setSize(parentNode.getSize() - 1);
@@ -512,7 +516,7 @@ public class Filesystem
 				writeINode(parentNum, parentNode);
 				writeFreeList(free);
 				
-				return "Deleted directory " + filename;
+				return "Deleted directory " + concatPath(p_asPath);
 			}
 			
 		default:
@@ -585,24 +589,28 @@ public class Filesystem
 	
 	public String copy(String[] p_asSource, String[] p_asDestination)
 	{
-		if (currentNode < 0)
+		if (currentDirectory == null)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 
 		if (p_asSource == null || p_asSource.length == 0)
 			return "Invalid source path";
 		
-		INode sourceNode = findINode(p_asSource);
+		String[] absSource = toAbsolute(p_asSource);
+		
+		INode sourceNode = findINode(absSource);
 		if (sourceNode == null)
 			return "Source does not exist";
-
+		
 		if (p_asDestination == null || p_asDestination.length == 0)
 			return "Invalid destination path";
+
+		String[] absDest = toAbsolute(p_asDestination);
 		
-		String destFilename = p_asDestination[p_asDestination.length - 1];
+		String destFilename = absDest[absDest.length - 1];
 		if (destFilename == null || destFilename.isEmpty())
 			return "Invalid destination filename";
 		
-		short destParentNum = findNode(Arrays.copyOfRange(p_asDestination, 0, p_asDestination.length - 1));
+		short destParentNum = findNode(Arrays.copyOfRange(absDest, 0, absDest.length - 1));
 		if (destParentNum == -1)
 			return "Invalid destination path";
 		
@@ -700,13 +708,15 @@ public class Filesystem
 
 	public String append(String[] p_asSource, String[] p_asDestination)
 	{
-		if (currentNode < 0)
+		if (currentDirectory == null)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 		
 		if (p_asSource == null || p_asSource.length == 0)
 			return "Invalid source path";
 		
-		INode sourceFileNode = findINode(p_asSource);
+		String[] absSource = toAbsolute(p_asSource);
+		
+		INode sourceFileNode = findINode(absSource);
 		if (sourceFileNode == null)
 			return "Source does not exist";
 		
@@ -716,7 +726,9 @@ public class Filesystem
 		if (p_asDestination == null || p_asDestination.length == 0)
 			return "Invalid destination path";
 		
-		short destFileNum = findNode(p_asDestination);
+		String[] absDest = toAbsolute(p_asDestination);
+		
+		short destFileNum = findNode(absDest);
 		if (destFileNum == -1)
 			return "Destination does not exist";
 		
@@ -745,9 +757,9 @@ public class Filesystem
 		return "Appended " + concatPath(p_asSource) + " to " + concatPath(p_asDestination);
 	}
 
-	public String rename(String[] p_asSource,String[] p_asDestination)
+	public String rename(String[] p_asSource, String[] p_asDestination)
 	{
-		if (currentNode < 0)
+		if (currentDirectory == null)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 
 		if (p_asSource == null || p_asSource.length == 0)
@@ -756,19 +768,22 @@ public class Filesystem
 		if (p_asDestination == null || p_asDestination.length == 0)
 			return "Invalid destination path";
 		
-		short sourceParentNum = findNode(Arrays.copyOfRange(p_asSource, 0, p_asSource.length - 1));
+		String[] absSource = toAbsolute(p_asSource);
+		String[] absDest = toAbsolute(p_asDestination);
+		
+		short sourceParentNum = findNode(Arrays.copyOfRange(absSource, 0, absSource.length - 1));
 		if (sourceParentNum == -1)
 			return "Invalid source path";
 		
-		short destParentNum = findNode(Arrays.copyOfRange(p_asDestination, 0, p_asDestination.length - 1));
+		short destParentNum = findNode(Arrays.copyOfRange(absDest, 0, absDest.length - 1));
 		if (destParentNum == -1)
 			return "Invalid destination path";
 		
-		String sourceFilename = p_asSource[p_asSource.length - 1];
+		String sourceFilename = absSource[absSource.length - 1];
 		if (sourceFilename == null || sourceFilename.isEmpty())
 			return "Invalid source filename";
 		
-		String destFilename = p_asDestination[p_asDestination.length - 1];
+		String destFilename = absDest[absDest.length - 1];
 		if (destFilename == null || destFilename.isEmpty())
 			return "Invalid destination filename";
 		
@@ -809,17 +824,19 @@ public class Filesystem
 
 	public String mkdir(String[] p_asPath)
 	{
-		if (currentNode < 0)
+		if (currentDirectory == null)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 
 		if (p_asPath == null || p_asPath.length == 0)
 			return "Invalid path";
 		
-		String dirname = p_asPath[p_asPath.length - 1];
+		String[] absPath = toAbsolute(p_asPath);
+		
+		String dirname = absPath[absPath.length - 1];
 		if (dirname == null || dirname.isEmpty())
 			return "Invalid filename";
 		
-		short parentNum = findNode(Arrays.copyOfRange(p_asPath, 0, p_asPath.length - 1));
+		short parentNum = findNode(Arrays.copyOfRange(absPath, 0, absPath.length - 1));
 		if (parentNum == -1)
 			return "Invalid path";
 		
@@ -846,13 +863,24 @@ public class Filesystem
 
 	public String cd(String[] p_asPath)
 	{
-		if (currentNode < 0)
+		if (currentDirectory == null)
 			return "Invalid filesystem. Use format or read to prepare the filesystem before use.";
 		
-		System.out.print("Changing directory to ");
-		dumpArray(p_asPath);
-		System.out.print("");
-		return new String("");
+		if (p_asPath == null || p_asPath.length == 0)
+			return "Invalid path";
+		
+		String[] absPath = toAbsolute(p_asPath);
+		
+		INode dir = findINode(absPath);
+		if (dir == null)
+			return "Directory does not exist";
+		
+		if (dir.getType() != Type.Directory)
+			return "Can not navigate to path, as path is not a directory";
+		
+		currentDirectory = Arrays.asList(absPath);
+		
+		return "Changed directory to /" + concatPath(absPath);
 	}
 
 	public String pwd()
@@ -860,30 +888,30 @@ public class Filesystem
 		if (currentDirectory == null)
 			return "Unformatted filesystem";
 		
-		StringBuilder res = new StringBuilder("/");
-		for (String s : currentDirectory)
-		{
-			res.append(s).append('/');
-		}
-		return res.toString();
-	}
-
-	private void dumpArray(String[] p_asArray)
-	{
-		for(int nIndex = 0; nIndex < p_asArray.length; nIndex++)
-		{
-			System.out.print(p_asArray[nIndex] + "=>");
-		}
+		return "/" + concatPath(currentDirectory);
 	}
 	
 	private String concatPath(String[] path)
 	{
-		if (path == null || path.length == 0)
+		return concatPath(Arrays.asList(path));
+	}
+	
+	private String concatPath(List<String> path)
+	{
+		if (path == null || path.size() == 0)
 			return "";
 		
 		StringBuilder res = new StringBuilder();
+		boolean first = true;
 		for (String p : path)
-			res.append("/").append(p);
+		{
+			if (!first)
+				res.append("/");
+			else
+				first = false;
+			
+			res.append(p);
+		}
 		
 		return res.toString();
 	}
