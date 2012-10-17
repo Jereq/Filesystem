@@ -1,11 +1,18 @@
 package se.jereq.filesystem;
 
+/**
+ * Represents a list of free blocks accessible with the filesystem, using an underlying block.
+ * Changes must be saved externally.
+ */
 public class FreeListNode {
 
 	private static final int FREE_LIST_START = 2;
 	
 	private byte[] block;
 	
+	/**
+	 * constructor. Creates the default free list block.
+	 */
 	public FreeListNode()
 	{
 		block = new byte[BlockDevice.BLOCK_SIZE];
@@ -13,9 +20,15 @@ public class FreeListNode {
 		setFirstFree(Filesystem.BLOCK_START);
 	}
 	
+	/**
+	 * constructor. Creates a <code>FreeListNode</code> for an existing block.
+	 * 
+	 * @param data byte array of the size specified by the {@link BlockDevice}.
+	 * @throws IllegalArgumentException Exception thrown if <code>data</code> is null or of incorrect size.
+	 */
 	public FreeListNode(byte[] data)
 	{
-		if (data.length != BlockDevice.BLOCK_SIZE)
+		if (data == null || data.length != BlockDevice.BLOCK_SIZE)
 			throw new IllegalArgumentException("Only standard sized blocks supported");
 		
 		if ((data[FREE_LIST_START] & 0xc0) != 0xc0)
@@ -43,6 +56,12 @@ public class FreeListNode {
 				block[1] & 0xff);
 	}
 	
+	/**
+	 * Get the number of a free block and mark it as taken. May return block numbers not
+	 * supported by the filesystem when the filesystem is out of space.
+	 * 
+	 * @return The number of the taken free block, or -1 if none could be found.
+	 */
 	public short getNewBlock()
 	{
 		int i = getFirstFree() / 8;
@@ -66,6 +85,12 @@ public class FreeListNode {
 		return -1;
 	}
 	
+	/**
+	 * Mark the target block as free. Not checked if it is already free.
+	 * 
+	 * @param num the number of the block to free. All block numbers supported
+	 * by the filesystem should be valid.
+	 */
 	public void freeBlock(short num)
 	{
 		int byteNum = num / 8;
@@ -79,6 +104,12 @@ public class FreeListNode {
 		}
 	}
 
+	/**
+	 * Get the underlying block, usually in order to store it.
+	 * 
+	 * @return Byte array of the size defined by {@link BlockDevice}. If the returned array is modified,
+	 * there is no guarantee that this <code>INode</code> remain valid. 
+	 */
 	public byte[] getBlock()
 	{
 		return block;

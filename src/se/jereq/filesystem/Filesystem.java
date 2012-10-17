@@ -14,23 +14,41 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import se.jereq.filesystem.INode.Type;
-
+/**
+ * A simple and limited filesystem using a provided {@link BlockDevice}.
+ * <br><br>
+ * Currently only supports statically defined blocks sizes and block counts.
+ */
 public class Filesystem
 {
-	public static final short ROOT_BLOCK = 0;
-	public static final short FREE_LIST_BLOCK = 1;
+	private static final short ROOT_BLOCK = 0;
+	private static final short FREE_LIST_BLOCK = 1;
+	
+	/**
+	 * The index of the first block free for dynamic use.
+	 * Earlier blocks are reserved for use by the filesystem.
+	 */
 	public static final short BLOCK_START = 2;
 	
 	private BlockDevice m_BlockDevice;
-
 	private List<String> currentDirectory;
 
+	/**
+	 * constructor.
+	 * 
+	 * @param p_BlockDevice the block device to support the filesystem.
+	 */
 	public Filesystem(BlockDevice p_BlockDevice)
 	{
 		m_BlockDevice = p_BlockDevice;
 	}
 
+	/**
+	 * Initializes an empty filesystem so that it is ready for use. Existing data
+	 * is not overwritten, except for any blocks reserved by the filesystem.
+	 * 
+	 * @return A descriptive result from the operation, without final newline.
+	 */
 	public String format()
 	{
 		INode root = new INode("§SYSTEM_ROOT_NODE", INode.Type.Directory);
@@ -44,52 +62,9 @@ public class Filesystem
 		return new String("Diskformat successful");
 	}
 	
-	private void printRep(short val, int rep)
-	{
-		System.out.print("[" + val + "]");
-		
-		if (rep != 1)
-			System.out.println(" x" + rep);
-		else
-			System.out.println();
-	}
-	
-	private void dumpChildren(INode node)
-	{
-		short prev = node.getChild(0);
-		int repCount = 1;
-		
-		for (int i = 1; i < INode.NUM_CHILDREN; ++i)
-		{
-			short val = node.getChild(i);
-			
-			if (val == prev)
-			{
-				repCount++;
-			}
-			else
-			{
-				printRep(prev, repCount);
-				repCount = 1;
-				prev = val;
-			}
-		}
-		
-		printRep(prev, repCount);
-	}
-	
-	@SuppressWarnings("unused")
-	private void dumpINode(INode node)
-	{
-		System.out.println("Name: \"" + node.getName() + "\"");
-		System.out.println("Type: " + node.getType());
-		
-		dumpChildren(node);
-	}
-	
 	private short findChildNode(INode current, String nextName)
 	{
-		if (current.getType() == Type.File)
+		if (current.getType() == INode.Type.File)
 			return -1;
 		
 		int i = 0;
@@ -109,7 +84,7 @@ public class Filesystem
 	
 	private INode findChildINode(INode current, String nextName)
 	{
-		if (current.getType() == Type.File)
+		if (current.getType() == INode.Type.File)
 			return null;
 		
 		int i = 0;
@@ -187,6 +162,15 @@ public class Filesystem
 		return node;
 	}
 
+	/**
+	 * Creates a list of the contents in a directory given by path.
+	 * 
+	 * @param p_asPath the directory to list content from. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @return A descriptive result from the operation, without final newline.
+	 * If successful, contains a formatted list of the contents in the directory.
+	 */
 	public String ls(String[] p_asPath)
 	{
 		if (currentDirectory == null)
@@ -200,7 +184,7 @@ public class Filesystem
 			return "Directory does not exist";
 		}
 		
-		if (dir.getType() == Type.File)
+		if (dir.getType() == INode.Type.File)
 		{
 			return "Can not list file";
 		}
@@ -209,6 +193,14 @@ public class Filesystem
 		res.append(concatPath(p_asPath));
 		
 		res.append("\n\n");
+		
+		if (dir.getSize() == 0)
+		{
+			res.append("Empty directory");
+			return res.toString();
+		}
+		
+		res.append(String.format("%-20s%-10s%10s\n\n", "Name", "Type", "Size"));
 		
 		int i = 0;
 		int currChild = dir.getChild(i++);
@@ -219,11 +211,6 @@ public class Filesystem
 			res.append(String.format("%-20s%-10s%10d\n", child.getName(), child.getType(), child.getSize()));
 			
 			currChild = dir.getChild(i++);
-		}
-		
-		if (i == 1)
-		{
-			res.append("Empty directory");
 		}
 		
 		return res.toString();
@@ -256,6 +243,15 @@ public class Filesystem
 		m_BlockDevice.writeBlock(dest, data);
 	}
 	
+	/**
+	 * Create a new file with the provided content. Fails if the path is invalid or the content is to large.
+	 * 
+	 * @param p_asPath the path to the file to be created. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @param p_abContents a byte array containing the data to initialize the file with.
+	 * @return A descriptive result from the operation, without final newline.
+	 */
 	public String create(String[] p_asPath, byte[] p_abContents)
 	{
 		if (currentDirectory == null)
@@ -288,7 +284,7 @@ public class Filesystem
 		INode fileNode;
 		try
 		{
-			fileNode = new INode(filename, Type.File);
+			fileNode = new INode(filename, INode.Type.File);
 		}
 		catch (IllegalArgumentException ex)
 		{
@@ -318,6 +314,16 @@ public class Filesystem
 		return concatPath(p_asPath) + " created successfully";
 	}
 
+	/**
+	 * Despite what the name says, this function does not catenate anything. Rather it
+	 * returns the content of the single file the given file points to.
+	 * 
+	 * @param p_asPath the path to the file to be catenated. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @return If the path points to a file, returns the contents of that file, otherwise returns
+	 * a descriptive error string. No final newline added.
+	 */
 	public String cat(String[] p_asPath)
 	{
 		if (currentDirectory == null)
@@ -332,7 +338,7 @@ public class Filesystem
 			return "File does not exist";
 		}
 		
-		if (file.getType() != Type.File)
+		if (file.getType() != INode.Type.File)
 		{
 			return "Can not catenate anything other than files";
 		}
@@ -362,6 +368,14 @@ public class Filesystem
 		return res.toString();
 	}
 
+	/**
+	 * Save this filesystem to a file in the real filesystem. 
+	 * 
+	 * @param p_sPath the path to the file where the data should be saved.
+	 * Must follow java's rules for filenames.
+	 *  
+	 * @return A descriptive result from the operation, without final newline.
+	 */
 	public String save(String p_sPath)
 	{
 		if (currentDirectory == null)
@@ -395,6 +409,12 @@ public class Filesystem
 		return "Saved blockdevice to file " + p_sPath;
 	}
 
+	/**
+	 * Initialize this filesystem with data from an actual file.
+	 * 
+	 * @param p_sPath the real file to read from. The file must be of the correct size.
+	 * @return A descriptive result from the operation, without final newline.
+	 */
 	public String read(String p_sPath)
 	{
 		File file = new File(p_sPath);
@@ -446,6 +466,14 @@ public class Filesystem
 		return "Read file " + p_sPath + " to blockdevice";
 	}
 
+	/**
+	 * Remove target file or empty directory.
+	 * 
+	 * @param p_asPath the path to the file to be removed. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @return A descriptive result from the operation, without final newline.
+	 */
 	public String rm(String[] p_asPath)
 	{
 		if (currentDirectory == null)
@@ -527,7 +555,7 @@ public class Filesystem
 	private short copyFile(INode source, String destName, FreeListNode freeList)
 	{
 		short destFileNum = freeList.getNewBlock();
-		INode destFileNode = new INode(destName, Type.File);
+		INode destFileNode = new INode(destName, INode.Type.File);
 		
 		int blockId = 0;
 		short blockNum = source.getChild(0);
@@ -552,7 +580,7 @@ public class Filesystem
 	private short copyDir(INode source, String destName, FreeListNode freeList)
 	{
 		short destDirNum = freeList.getNewBlock();
-		INode destDirNode = new INode(destName, Type.Directory);
+		INode destDirNode = new INode(destName, INode.Type.Directory);
 		
 		int childId = 0;
 		short childNum = source.getChild(0);
@@ -587,6 +615,18 @@ public class Filesystem
 		}
 	}
 	
+	/**
+	 * Copy the target source file or directory to the target destination file or directory. 
+	 * Will not overwrite any existing file or directory.
+	 * 
+	 * @param p_asSource the path to the file or directory to be copied. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @param p_asDestination the path to where the copy should be placed. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @return A descriptive result from the operation, without final newline.
+	 */
 	public String copy(String[] p_asSource, String[] p_asDestination)
 	{
 		if (currentDirectory == null)
@@ -706,6 +746,17 @@ public class Filesystem
 		}
 	}
 
+	/**
+	 * Append one file to the end of another file.
+	 * 
+	 * @param p_asSource the path to the file to be appended to the other. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @param p_asDestination the path to the file to be appended to. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @return A descriptive result from the operation, without final newline.
+	 */
 	public String append(String[] p_asSource, String[] p_asDestination)
 	{
 		if (currentDirectory == null)
@@ -720,7 +771,7 @@ public class Filesystem
 		if (sourceFileNode == null)
 			return "Source does not exist";
 		
-		if (sourceFileNode.getType() != Type.File)
+		if (sourceFileNode.getType() != INode.Type.File)
 			return "Source is not a file";
 		
 		if (p_asDestination == null || p_asDestination.length == 0)
@@ -733,7 +784,7 @@ public class Filesystem
 			return "Destination does not exist";
 		
 		INode destFileNode = getINode(destFileNum);
-		if (destFileNode.getType() != Type.File)
+		if (destFileNode.getType() != INode.Type.File)
 			return "Destination is not a file";
 		
 		int destStartSize = destFileNode.getSize();
@@ -757,6 +808,18 @@ public class Filesystem
 		return "Appended " + concatPath(p_asSource) + " to " + concatPath(p_asDestination);
 	}
 
+	/**
+	 * Rename a file or directory. Will also move the file if different
+	 * parent directories are specified. Will not overwrite files or directories.
+	 * 
+	 * @param p_asSource the path to the file or directory to rename. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @param p_asDestination the new name and/or location. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @return A descriptive result from the operation, without final newline.
+	 */
 	public String rename(String[] p_asSource, String[] p_asDestination)
 	{
 		if (currentDirectory == null)
@@ -822,6 +885,14 @@ public class Filesystem
 		return concatPath(p_asSource) + " renamed successfully to " + concatPath(p_asDestination);
 	}
 
+	/**
+	 * Create a directory.
+	 * 
+	 * @param p_asPath the path to the new directory. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @return A descriptive result from the operation, without final newline.
+	 */
 	public String mkdir(String[] p_asPath)
 	{
 		if (currentDirectory == null)
@@ -847,7 +918,7 @@ public class Filesystem
 		FreeListNode free = getFreeList();
 		
 		short dirNum = free.getNewBlock();
-		INode dirNode = new INode(dirname, Type.Directory);
+		INode dirNode = new INode(dirname, INode.Type.Directory);
 		
 		parentNode.addChild(dirNum);
 		parentNode.setSize(parentNode.getSize() + 1);
@@ -861,6 +932,14 @@ public class Filesystem
 		return concatPath(p_asPath) + " created successfully";
 	}
 
+	/**
+	 * Changes the working directory.
+	 * 
+	 * @param p_asPath the path to the new working directory. Can be either relative or absolute.
+	 * Absolute paths are marked by a leading empty string.
+	 * 
+	 * @return A descriptive result from the operation, without final newline.
+	 */
 	public String cd(String[] p_asPath)
 	{
 		if (currentDirectory == null)
@@ -875,7 +954,7 @@ public class Filesystem
 		if (dir == null)
 			return "Directory does not exist";
 		
-		if (dir.getType() != Type.Directory)
+		if (dir.getType() != INode.Type.Directory)
 			return "Can not navigate to path, as path is not a directory";
 		
 		currentDirectory = Arrays.asList(absPath);
@@ -883,6 +962,11 @@ public class Filesystem
 		return "Changed directory to /" + concatPath(absPath);
 	}
 
+	/**
+	 * Returns the current working directory as an absolute path.
+	 * 
+	 * @return a string representing the current working directory.
+	 */
 	public String pwd()
 	{
 		if (currentDirectory == null)

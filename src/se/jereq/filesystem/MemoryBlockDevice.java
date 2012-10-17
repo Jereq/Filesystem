@@ -1,8 +1,11 @@
 package se.jereq.filesystem;
 
+/**
+ * Implements {@link BlockDevice} as a memory mapped disk.
+ */
 public class MemoryBlockDevice extends BlockDevice
 {
-	byte[][] m_abContents = new byte[BLOCK_COUNT][BLOCK_SIZE];
+	private byte[][] m_abContents = new byte[BLOCK_COUNT][BLOCK_SIZE];
 
 	public int writeBlock(int p_nBlockNr,byte[] p_abContents)
 	{

@@ -1,14 +1,24 @@
 package se.jereq.filesystem;
-import java.io.*;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 
-
+/**
+ * A minimal test shell for running a {@link Filesystem}.
+ */
 public class Shell
 {
 	private Filesystem m_Filesystem;
 	private InputStream m_Stream;
 	private boolean lastREnter = false;
 
+	/**
+	 * constructor.
+	 * 
+	 * @param p_Filesystem the {@link Filesystem} to call functions from.
+	 * @param p_Stream the stream to read from, or null to read from {@link System#in}.
+	 */
 	public Shell(Filesystem p_Filesystem, InputStream p_Stream)
 	{
 		m_Filesystem = p_Filesystem;
@@ -23,17 +33,21 @@ public class Shell
 		}
 	}
 
+	/**
+	 * Start running the shell. Will run until it receives
+	 * the 'quit' command from the input stream.
+	 */
 	public void start()
 	{
 		String[] asCommands =
 			{ "quit", "format", "ls", "create", "cat", "save", "read",
 				"rm", "copy", "append", "rename", "mkdir", "cd", "pwd", "help" };
 
-		boolean bRun=true;
+		boolean bRun = true;
 		String	sCommand;
 		String[] asCommandArray;
 
-		while(bRun)
+		while (bRun)
 		{
 			System.out.print("[" + m_Filesystem.pwd() + "]$ ");
 			sCommand = readLine();
@@ -51,13 +65,13 @@ public class Shell
 						break;
 					}
 				}
-				switch(nIndex)
+				switch (nIndex)
 				{
 				case 0: // quit
 					return;
 
 				case 1: // format
-					if(asCommandArray.length != 1)
+					if (asCommandArray.length != 1)
 					{
 						System.out.println("Usage: format");
 					}
@@ -85,7 +99,7 @@ public class Shell
 					}
 					break;
 				case 3: // create
-					if(asCommandArray.length != 2)
+					if (asCommandArray.length != 2)
 					{
 						System.out.println("Usage: create <file>");
 					}
@@ -97,7 +111,7 @@ public class Shell
 					break;
 
 				case 4: // cat
-					if(asCommandArray.length != 2)
+					if (asCommandArray.length != 2)
 					{
 						System.out.println("Usage: cat <file>");
 					}
@@ -107,7 +121,7 @@ public class Shell
 					}
 					break;
 				case 5: // save
-					if(asCommandArray.length != 2)
+					if (asCommandArray.length != 2)
 					{
 						System.out.println("Usage: save <real-file>");
 					}
@@ -117,7 +131,7 @@ public class Shell
 					}
 					break;
 				case 6: // read
-					if(asCommandArray.length != 2)
+					if (asCommandArray.length != 2)
 					{
 						System.out.println("Usage: read <real-file>");
 					}
@@ -128,7 +142,7 @@ public class Shell
 					break;
 
 				case 7: // rm
-					if(asCommandArray.length != 2)
+					if (asCommandArray.length != 2)
 					{
 						System.out.println("Usage: rm <file>");
 					}
@@ -139,7 +153,7 @@ public class Shell
 					break;
 
 				case 8: // copy
-					if(asCommandArray.length != 3)
+					if (asCommandArray.length != 3)
 					{
 						System.out.println("Usage: copy <source> <destination>");
 					}
@@ -150,7 +164,7 @@ public class Shell
 					break;
 					
 				case 9: // append
-					if(asCommandArray.length != 3)
+					if (asCommandArray.length != 3)
 					{
 						System.out.println("Usage: append <source> <destination>");
 					}
@@ -161,7 +175,7 @@ public class Shell
 					break;
 
 				case 10: // rename
-					if(asCommandArray.length != 3)
+					if (asCommandArray.length != 3)
 					{
 						System.out.println("Usage: rename <old file> <new file>");
 					}
@@ -172,7 +186,7 @@ public class Shell
 					break;
 
 				case 11: // mkdir
-					if(asCommandArray.length != 2)
+					if (asCommandArray.length != 2)
 					{
 						System.out.println("Usage: mkdir <directory name>");
 					}
@@ -183,7 +197,7 @@ public class Shell
 					break;
 
 				case 12: // cd
-					if(asCommandArray.length != 2)
+					if (asCommandArray.length != 2)
 					{
 						System.out.println("Usage: cd <path>");
 					}
@@ -194,7 +208,7 @@ public class Shell
 					break;
 
 				case 13: // pwd
-					if(asCommandArray.length != 1)
+					if (asCommandArray.length != 1)
 					{
 						System.out.println("Usage: pwd");
 					}
@@ -257,7 +271,7 @@ public class Shell
 		return asStrings;
 	}
 
-
+	// Modified to account for windows newlines ("\r\n")
 	private byte[] readBlock()
 	{
 		byte[] abTempBuffer = new byte[1024];
@@ -322,9 +336,11 @@ public class Shell
 		}
 
 		return Arrays.copyOf(abTempBuffer, nIndex);
-
 	}
 
+	// Modified to account for windows' newlines ("\r\n"),
+	// also returns an array the size of the input, in order
+	// to test the filesystem's abilities to handle part-block files.
 	private String readLine()
 	{
 		byte[] abTempBuffer = new byte[1024];
@@ -371,15 +387,4 @@ public class Shell
 
 		return sTemp;
 	}
-
-	@SuppressWarnings("unused")
-	private void dumpArray(String[] p_asArray)
-	{
-		for(int nIndex = 0; nIndex < p_asArray.length; nIndex++)
-		{
-			System.out.print(p_asArray[nIndex] + "->");
-		}
-		
-		System.out.println();
-	} 
 }
